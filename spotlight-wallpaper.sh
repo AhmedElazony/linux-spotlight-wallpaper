@@ -90,9 +90,8 @@ download_picsum() {
 	local filename="$WALLPAPER_DIR/spotlight_picsum_$(date +%s).jpg"
 	local url="${APIS[1]}" # Use second API endpoint for Picsum
 
-	log_message "Downloading from Picsum"
 	if curl -s -L -o "$filename" "$url"; then
-		echo "filename: $filename"
+		echo "$filename"
 		return 0
 	else
 		log_message "Failed to download from Picsum"
@@ -143,28 +142,54 @@ main() {
 	# Clean old wallpapers
 	clean_old_wallpapers
 
-	# Try to download new wallpaper
+	# Alternate between downloading and using existing wallpapers
+	local state_file="$WALLPAPER_DIR/.last_mode"
+	local mode="download"
+	if [ -f "$state_file" ]; then
+		last_mode=$(cat "$state_file")
+		if [ "$last_mode" = "download" ]; then
+			mode="existing"
+		else
+			mode="download"
+		fi
+	fi
+
 	local new_wallpaper=""
 
-	# Try Unsplash first (better quality, more variety)
-	if [ -n "$UNSPLASH_KEY" ]; then
-		new_wallpaper=$(download_unsplash)
-	fi
+	if [ "$mode" = "download" ]; then
+		# Try Unsplash first (better quality, more variety)
+		if [ -n "$UNSPLASH_KEY" ]; then
+			new_wallpaper=$(download_unsplash)
+		fi
 
-	# Fallback to Picsum if Unsplash failed
-	if [ -z "$new_wallpaper" ]; then
-		new_wallpaper=$(download_picsum)
-	fi
+		# Fallback to Picsum if Unsplash failed
+		if [ -z "$new_wallpaper" ]; then
+			new_wallpaper=$(download_picsum)
+		fi
 
-	# If download failed, use existing wallpaper
-	if [ -z "$new_wallpaper" ]; then
-		log_message "All downloads failed, trying existing wallpaper"
+		# If download failed, use existing wallpaper
+		if [ -z "$new_wallpaper" ]; then
+			log_message "All downloads failed, trying existing wallpaper"
+			new_wallpaper=$(get_random_existing)
+		fi
+	else
 		new_wallpaper=$(get_random_existing)
+		# If no existing wallpaper, fallback to download
+		if [ -z "$new_wallpaper" ]; then
+			log_message "No existing wallpapers, trying to download"
+			if [ -n "$UNSPLASH_KEY" ]; then
+				new_wallpaper=$(download_unsplash)
+			fi
+			if [ -z "$new_wallpaper" ]; then
+				new_wallpaper=$(download_picsum)
+			fi
+		fi
 	fi
 
 	# Set wallpaper
 	if [ -n "$new_wallpaper" ]; then
 		set_wallpaper "$new_wallpaper"
+		echo "$mode" >"$state_file"
 	else
 		log_message "ERROR: No wallpaper available to set"
 		exit 1
