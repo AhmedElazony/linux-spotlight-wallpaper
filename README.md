@@ -81,6 +81,7 @@ After=graphical-session.target
 [Service]
 Type=oneshot
 Environment=DISPLAY=:0
+Environment=UNSPLASH_ACCESS_KEY=your_api_key
 ExecStart=%h/.local/bin/spotlight-wallpaper.sh
 StandardOutput=journal
 StandardError=journal
